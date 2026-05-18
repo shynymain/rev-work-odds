@@ -1,4 +1,4 @@
-// Rev610 odds Worker full replacement
+// Rev611 odds Worker full replacement
 // Adds: shutuba.html probe, odds/index.html fallback, HTML snippet diagnostics.
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -24,20 +24,21 @@ export default { async fetch(request) {
       if (horses.length >= 8) break;
     }
     return json({ ok:true, source:best.source, count:best.horses.length, horses:best.horses,
-      diagnosis:{rev606:true,rev607:true,rev608:true,rev609:true,rev610:true, selectedSource:best.source, attempts, parser:'html_probe_odds_index_fallback'} });
-  } catch(e) { return json({ok:false,source:'',count:0,horses:[],diagnosis:{rev610:true,error:String(e&&e.message||e)}}); }
+      diagnosis:{rev606:true,rev607:true,rev608:true,rev609:true,rev610:true,rev611:true, selectedSource:best.source, attempts, parser:'html_probe_odds_index_fallback'} });
+  } catch(e) { return json({ok:false,source:'',count:0,horses:[],diagnosis:{rev610:true,rev611:true,error:String(e&&e.message||e)}}); }
 }};
 function json(o,s=200){return new Response(JSON.stringify(o,null,2),{status:s,headers:CORS_HEADERS});}
 function dec(v){try{return decodeURIComponent(String(v||''));}catch(_){return String(v||'');}}
 function digits(v){return String(v||'').replace(/\D/g,'');}
+function normalizeRaceId12(v){ const d=digits(v); if(d.length===16) return d.slice(0,4)+d.slice(8,16); if(d.length>=12) return d.slice(0,12); return d; }
 function first(...a){for(const v of a){if(v!=null&&String(v).trim()!=='')return String(v)}return ''}
 function gp(u,k){return u.searchParams.get(k)||''}
 function normalizePage(url,page){return String(url).replace(/\/race\/(shutuba|result|odds)\.html/i,`/race/${page}`);}
 function pickRaceIdFromText(t){const s=dec(t||'');let m=s.match(/race_id[=:%22'"&]+(\d{16})/i)||s.match(/RaceId[=:%22'"&]+(\d{16})/i); if(m)return m[1]; m=s.match(/race_id[=:%22'"&]+(\d{12,16})/i); return m?m[1]:'';}
-function pickRaceId(u,b,target){const from=pickRaceIdFromText(target); if(from.length===16)return from; const keys=['race_id','netkeibaRaceId','raceId','race_id16','raceId16','netkeibaRaceId16','nkRaceId16','race_id_full','netkeibaRaceIdFull','fullRaceId','expectedRaceId','requestRaceId','forceRaceId','strictRaceId','nkRaceId']; for(const k of keys){const d=digits(first(gp(u,k),b&&b[k])); if(d.length>=16)return d.slice(0,16)} return from||'';}
+function pickRaceId(u,b,target){const from=pickRaceIdFromText(target); if(from.length>=12)return normalizeRaceId12(from); const keys=['race_id','netkeibaRaceId','raceId','race_id16','raceId16','netkeibaRaceId16','nkRaceId16','race_id_full','netkeibaRaceIdFull','fullRaceId','expectedRaceId','requestRaceId','forceRaceId','strictRaceId','nkRaceId']; for(const k of keys){const d=digits(first(gp(u,k),b&&b[k])); if(d.length>=12)return normalizeRaceId12(d)} return from?normalizeRaceId12(from):'';}
 function pickTargetUrl(u,b,page){for(const k of ['targetUrl','url','sourceUrl','fetchUrl','netkeibaUrl','pageUrl']){const v=dec(first(gp(u,k),b&&b[k])); if(/^https?:\/\//i.test(v))return normalizePage(v,page)} const rid=pickRaceId(u,b,''); return rid?`https://race.netkeiba.com/race/${page}?race_id=${rid}&rf=race_submenu`:'';}
 function buildCandidates(firstUrl,raceId){const out=[]; const add=x=>{if(x&&!out.includes(x))out.push(x)}; add(firstUrl); if(raceId){add(`https://race.netkeiba.com/race/shutuba.html?race_id=${raceId}&rf=race_submenu`); add(`https://race.netkeiba.com/odds/index.html?race_id=${raceId}`); add(`https://race.netkeiba.com/odds/index.html?race_id=${raceId}&type=b1`); add(`https://race.netkeiba.com/odds/index.html?race_id=${raceId}&type=win`);} return out;}
-async function fetchHtml(url){const res=await fetch(url,{headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Rev610','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8','Accept-Language':'ja,en-US;q=0.9,en;q=0.8','Referer':'https://race.netkeiba.com/'}}); const buf=await res.arrayBuffer(); let html='',encodingUsed='utf-8'; try{html=new TextDecoder('euc-jp').decode(buf); encodingUsed='euc-jp'}catch(_){html=new TextDecoder('utf-8').decode(buf)} if(!/[ぁ-んァ-ン一-龥]/.test(html)){try{html=new TextDecoder('utf-8').decode(buf);encodingUsed='utf-8'}catch(_){}} return {status:res.status,html,encodingUsed};}
+async function fetchHtml(url){const res=await fetch(url,{headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Rev611','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8','Accept-Language':'ja,en-US;q=0.9,en;q=0.8','Referer':'https://race.netkeiba.com/'}}); const buf=await res.arrayBuffer(); let html='',encodingUsed='utf-8'; try{html=new TextDecoder('euc-jp').decode(buf); encodingUsed='euc-jp'}catch(_){html=new TextDecoder('utf-8').decode(buf)} if(!/[ぁ-んァ-ン一-龥]/.test(html)){try{html=new TextDecoder('utf-8').decode(buf);encodingUsed='utf-8'}catch(_){}} return {status:res.status,html,encodingUsed};}
 function strip(s){return String(s||'').replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&#039;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();}
 function parseAnyHorseOdds(html){const rows=[]; const seen=new Set(); const add=(no,name,odds)=>{no=Number(no); name=String(name||'').trim(); if(!(no>=1&&no<=18)||!name||name.length>36||seen.has(no))return; seen.add(no); rows.push({no,horseNo:no,name,horseName:name,odds:odds||'',winOdds:odds||''});};
   const h=String(html||'');
